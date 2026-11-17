@@ -26,7 +26,8 @@ let topic = 'today';
 let activeDate = dateInSeoul();
 let reading = null;
 let draw = null;
-let soundOn = false;
+let soundOn = Boolean(TarotAudioContext);
+try { soundOn = soundOn && localStorage.getItem('taeyang-fireworks-muted') !== 'true'; } catch {}
 let storyFile = null;
 let storyUrl = '';
 let toastTimer;
@@ -130,12 +131,12 @@ function drawSlot(card, position, session) {
     if (draw !== session || session.busy || button.hasAttribute('aria-disabled')) return;
     session.busy = true;
     if (soundOn) prepareTarotAudio();
-    let chimePlayed = false;
+    let soundPlayed = false;
     function turnOver() {
       button.classList.add('is-open');
-      if (soundOn && !chimePlayed) {
-        chimePlayed = true;
-        playTarotChime();
+      if (soundOn && !soundPlayed) {
+        soundPlayed = true;
+        playTarotFireworkSound(session.controller.signal);
       }
     }
     await animateTarotCard(button, session.color, turnOver, session.controller.signal).catch(() => {});
@@ -180,21 +181,19 @@ function startDraw(color) {
 function showResult() {
   if (!draw || draw.revealed !== draw.cards.length) return;
   const {cards, color, positions} = draw;
-  const [label, lens, practical] = TAEYANG_TOPICS[topic];
+  const {label, messages, thread, action} = interpretTarot(cards, topic);
   const lastCard = cards.at(-1);
-  const messages = mode === 'one'
-    ? [lens + ' ' + cards[0].signal]
-    : [lens + ' ' + cards[0].signal, cards[1].caution, cards[2].action];
-  const action = mode === 'one' ? lastCard.action + ' ' + practical : practical;
   const focusTitle = byId('result-title');
 
-  reading = {cards, messages, label, action, date:activeDate, color};
+  reading = {cards, messages, label, thread, action, date:activeDate, color};
   byId('result-topic').textContent = label + ' · ' + colorLabels[color] + ' · ' + (mode === 'one' ? '오늘 한 장' : '세 장 리딩');
   focusTitle.textContent = lastCard.quote;
   const question = byId('question-text').value.trim();
   const questionDisplay = byId('result-question');
   questionDisplay.hidden = !question;
   questionDisplay.textContent = question ? '“' + question + '”' : '';
+  byId('result-thread-title').textContent = mode === 'one' ? '내 질문에 비춰 보면' : '세 장을 한 이야기로 읽으면';
+  byId('result-thread').textContent = thread;
   byId('result-action').textContent = action;
   resultCards.replaceChildren(...cards.map((card, i) => cardElement(card, positions[i], messages[i])));
   result.hidden = false;
@@ -210,14 +209,21 @@ function returnToDeck() {
 }
 byId('return-to-deck').addEventListener('click', returnToDeck);
 byId('stage-reset').addEventListener('click', returnToDeck);
+function updateSoundControl() {
+  revealSound.textContent = soundOn ? '효과음 켬' : '효과음 끔';
+  revealSound.setAttribute('aria-pressed', String(soundOn));
+}
+revealSound.hidden = !TarotAudioContext;
+updateSoundControl();
 revealSound.addEventListener('click', () => {
   if (!soundOn && !prepareTarotAudio()) {
     tell('이 브라우저에서는 효과음을 재생할 수 없어요.');
     return;
   }
   soundOn = !soundOn;
-  revealSound.textContent = soundOn ? '효과음 켬' : '효과음 끔';
-  revealSound.setAttribute('aria-pressed', String(soundOn));
+  if (!soundOn) stopTarotFireworkSound();
+  try { localStorage.setItem('taeyang-fireworks-muted', String(!soundOn)); } catch {}
+  updateSoundControl();
 });
 updateDate();
 document.addEventListener('visibilitychange', () => {
@@ -244,18 +250,6 @@ async function copyText(text) {
   previous?.focus({preventScroll:true});
   return copied;
 }
-
-byId('share-site').addEventListener('click', async () => {
-  if (navigator.share) {
-    try {
-      await navigator.share({title:'태양타로', text:'오늘 마음이 가는 카드 한 장을 골라보세요.', url:canonical});
-      return;
-    } catch (error) {
-      if (error.name === 'AbortError') return;
-    }
-  }
-  tell(await copyText(canonical) ? '사이트 주소를 복사했어요.' : '주소창의 사이트 주소를 복사해 주세요.');
-});
 
 function reviewContent() {
   const name = byId('review-name').value.trim();
@@ -424,6 +418,6 @@ if ('speechSynthesis' in window && 'SpeechSynthesisUtterance' in window) {
   readingVoice.hidden = false;
   welcomeVoice.addEventListener('click', () => say('안녕하세요, 태양타로예요. 리딩 방식과 마음에 걸리는 주제를 골라보세요. 끌리는 색을 고른 다음, 카드를 한 장씩 뒤집어 오늘의 이야기를 만나보세요.', welcomeVoice));
   readingVoice.addEventListener('click', () => {
-    if (reading) say([reading.label, ...reading.messages, '오늘 해볼 한 가지.', reading.action].join(' '), readingVoice);
+    if (reading) say([reading.label, ...reading.messages, reading.thread, '오늘 해볼 한 가지.', reading.action].join(' '), readingVoice);
   });
 }
