@@ -1,6 +1,6 @@
 # 태양타로
 
-[사이트 열기](https://shgudtjq-star.github.io/sunlight-tarot/)
+[사이트 열기](https://shgudtjq-star.github.io/tarot/)
 
 GitHub Pages에서 바로 열리는 정적 사이트입니다. 게시 설정은 Settings → Pages → Deploy from a branch → main → /(root)입니다.
 

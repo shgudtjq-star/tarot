@@ -264,7 +264,8 @@ function storyCanvasModel(data) {
   context.fillText('오늘, 마음이 가는 카드', 540, 1615);
   context.fillStyle = '#fff1df';
   context.font = '34px system-ui, sans-serif';
-  context.fillText(new URL(canonical).hostname + '/sunlight-tarot/', 540, 1692);
+  const shareAddress = new URL(canonical);
+  context.fillText(shareAddress.hostname + shareAddress.pathname, 540, 1692);
   return canvas;
 }
 
