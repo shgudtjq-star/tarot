@@ -1,6 +1,6 @@
 'use strict';
 
-const TAEYANG_DECK = [
+const TAEYANG_MAJOR_ARCANA = [
   ['0','바보','✦','처음부터 길을 다 알아야 하는 건 아니에요. 작은 호기심 하나면 한 걸음을 시작할 수 있어요.','설렌다는 이유로 전부 걸고 싶어질 수 있어요. 돌아올 길과 써도 되는 시간부터 정해요.','부담이 가장 작은 방식으로 딱 한 번 시험해 보세요.','완벽한 시작보다 작은 첫걸음'],
   ['I','마법사','✷','내게 없는 것만 보다가 이미 가진 재료를 잊었을지도 몰라요.','여러 가지를 한꺼번에 시작하면 내 힘을 어디에 쓸지 놓치기 쉬워요.','지금 당장 쓸 수 있는 기술이나 도구를 하나 골라 결과물로 만들어 보세요.','이미 가진 것에서 시작하세요'],
   ['II','여사제','☽','설명하기 어렵지만 계속 마음에 남는 느낌이 있나요? 조용히 들여다볼 때예요.','아직 듣지 못한 말을 상대의 마음이라고 단정하면 오해가 길어질 수 있어요.','확인된 사실 한 줄과 내가 느끼는 감정 한 줄을 따로 적어 보세요.','느낌을 듣고 사실을 확인하세요'],
@@ -23,7 +23,11 @@ const TAEYANG_DECK = [
   ['XIX','태양','☀','복잡하게 돌려 말하기보다 솔직한 한 문장이 마음을 풀어줄 때예요.','분위기가 좋다고 내 컨디션이나 상대의 여유까지 같을 거라 가정하지 말아요.','마음에 들었던 한 가지를 구체적으로 말이나 글로 표현해 보세요.','좋았던 것을 정확히 말해요'],
   ['XX','심판','❋','돌아보게 되는 일에는 아직 배울 만한 것이 남아 있을 수 있어요.','지난 결정을 되짚는 것과 그때의 나를 탓하는 건 다른 일이에요.','다시 기회가 온다면 바꿔볼 행동 하나를 정해요.','지난 일을 다음 선택에 써요'],
   ['XXI','세계','◎','끝맺을 일 하나를 잘 보낸 뒤 다음 흐름에 갈 힘이 남아요.','바로 다음 일을 찾다 보면 충분히 해낸 일까지 잊어버리기 쉬워요.','마무리된 일의 기록이나 마음을 한 줄로 남기고 스스로에게 쉬는 시간을 줘요.','마침표를 찍고 숨을 돌려요'],
-].map(([number, name, symbol, signal, caution, action, quote]) => ({number, name, symbol, signal, caution, action, quote}));
+].map(([number, name, symbol, signal, caution, action, quote], index) => ({
+  art:'m' + String(index).padStart(2, '0'), number, name, symbol, signal, caution, action, quote
+}));
+const TAEYANG_DECK = [...TAEYANG_MAJOR_ARCANA, ...TAEYANG_MINOR_ARCANA];
+const TAEYANG_DAILY_ORDER = shuffleTarot(TAEYANG_DECK, 0x6ce71fa3);
 
 const TAEYANG_TOPICS = {
   today: ['오늘의 흐름', '오늘 하루를 돌이켜봐요.', '하루를 반으로 나눠 지금 필요한 일을 생각해 보세요.'],
@@ -44,20 +48,27 @@ function dateInSeoul(now = new Date()) {
   return new Date(now.getTime() + 9 * 3600000).toISOString().slice(0, 10);
 }
 
+function shuffleTarot(cards, seed) {
+  const order = cards.slice();
+  for (let i = order.length - 1; i > 0; i--) {
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+    const other = Math.floor(seed / 0x100000000 * (i + 1));
+    [order[i], order[other]] = [order[other], order[i]];
+  }
+  return order;
+}
+
 function cardsFor(date, topic, color, mode) {
   const day = Math.floor(Date.parse(date) / 86400000);
   const topicIndex = Object.keys(TAEYANG_TOPICS).indexOf(topic);
   const colorIndex = TAEYANG_COLORS.indexOf(color);
   const size = TAEYANG_DECK.length;
-  const first = ((day + topicIndex * 13 + colorIndex * 7) % size + size) % size;
-  if (mode === 'one') return [TAEYANG_DECK[first]];
+  const slot = ((day + topicIndex * 13 + colorIndex * 7) % size + size) % size;
+  // Rotate through a shuffled deck so the daily card changes and can be any of the 78.
+  const first = TAEYANG_DAILY_ORDER[slot];
+  if (mode === 'one') return [first];
 
-  const remainder = TAEYANG_DECK.filter((_, i) => i !== first);
-  let seed = ((day * 73856093) ^ (topicIndex * 19349663) ^ (colorIndex * 83492791)) >>> 0;
-  for (let i = remainder.length - 1; i > 0; i--) {
-    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
-    const other = seed % (i + 1);
-    [remainder[i], remainder[other]] = [remainder[other], remainder[i]];
-  }
-  return [TAEYANG_DECK[first], ...remainder.slice(0, 2)];
+  const remaining = TAEYANG_DECK.filter(card => card !== first);
+  const seed = ((day * 73856093) ^ (topicIndex * 19349663) ^ (colorIndex * 83492791)) >>> 0;
+  return [first, ...shuffleTarot(remaining, seed).slice(0, 2)];
 }

@@ -127,16 +127,19 @@ const TAEYANG_STORY_TOPICS = {
   self: '요즘 마음이 무겁다면 잘 버텨온 만큼 잠깐 숨 쉴 시간을 가져보세요. 혼자 있고 싶은 시간과 누군가의 말이 필요한 시간이 하루 안에 함께 있을 수도 있어요.'
 };
 
+function tarotScene(card, position) {
+  return card.scene ?? TAEYANG_SCENES[TAEYANG_MAJOR_ARCANA.indexOf(card)][position];
+}
+
 function interpretTarot(cards, topic) {
   const [label, , practical] = TAEYANG_TOPICS[topic];
-  const scenes = cards.map(card => TAEYANG_SCENES[TAEYANG_DECK.indexOf(card)]);
   const [first, middle, last] = cards;
   const messages = cards.length === 1
-    ? [[scenes[0][0], first.signal, first.caution].join(' ')]
+    ? [[tarotScene(first, 0), first.signal, first.caution].join(' ')]
     : [
-      [scenes[0][0], first.signal].join(' '),
-      [scenes[1][1], middle.caution].join(' '),
-      [scenes[2][2], last.action].join(' ')
+      [tarotScene(first, 0), first.signal].join(' '),
+      [tarotScene(middle, 1), middle.caution].join(' '),
+      [tarotScene(last, 2), last.action].join(' ')
     ];
   const thread = cards.length === 1 ? TAEYANG_STORY_TOPICS[topic]
     : '‘' + first.name + '’에서 시작해 ‘' + middle.name + '’에서 잠시 돌아보고, 마지막으로 ‘' + last.name + '’에서 다음 움직임을 찾아요. ' + TAEYANG_STORY_TOPICS[topic];

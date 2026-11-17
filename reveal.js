@@ -6,17 +6,17 @@ const tarotPalettes = {
   gold: ['#ffdc73', '#fff2a0', '#ff9e47', '#f69aed', '#ffa698', '#fff8e4'],
   sage: ['#b5ffaf', '#57f6cd', '#ffdd70', '#a7adff', '#ffa8d8', '#fff8d8']
 };
-// The burst positions and times drive both the canvas and the stereo crackle.
+// A lead snap, a tight crackle cluster, then three spaced pops.
 const tarotSalvos = [
   {x:.5, y:.47, delay:0, spread:1.26, count:124, strength:1},
-  {x:.19, y:.25, delay:80, spread:.71, count:64, strength:.66},
-  {x:.82, y:.32, delay:154, spread:.74, count:68, strength:.75},
-  {x:.11, y:.67, delay:238, spread:.66, count:62, strength:.61},
-  {x:.88, y:.65, delay:315, spread:.78, count:72, strength:.81},
-  {x:.48, y:.13, delay:407, spread:.72, count:68, strength:.64},
-  {x:.33, y:.78, delay:495, spread:.67, count:60, strength:.55},
-  {x:.71, y:.78, delay:577, spread:.73, count:72, strength:.63},
-  {x:.5, y:.42, delay:664, spread:1, count:96, strength:.85}
+  {x:.19, y:.25, delay:132, spread:.71, count:64, strength:.63},
+  {x:.82, y:.32, delay:154, spread:.74, count:68, strength:.24},
+  {x:.11, y:.67, delay:176, spread:.66, count:62, strength:.72},
+  {x:.88, y:.65, delay:196, spread:.78, count:72, strength:.30},
+  {x:.48, y:.13, delay:220, spread:.72, count:68, strength:.92},
+  {x:.33, y:.78, delay:363, spread:.67, count:60, strength:.84},
+  {x:.71, y:.78, delay:522, spread:.73, count:72, strength:.88},
+  {x:.5, y:.42, delay:704, spread:1, count:96, strength:1}
 ];
 
 function tarotFace(card) {
@@ -30,8 +30,7 @@ function tarotFace(card) {
   image.alt = '';
   image.decoding = 'async';
   image.addEventListener('error', () => { image.hidden = true; }, {once:true});
-  const file = String(TAEYANG_DECK.indexOf(card)).padStart(2, '0');
-  image.src = './assets/arcana/m' + file + '.webp';
+  image.src = './assets/arcana/' + card.art + '.webp';
   face.append(symbol, image);
   return face;
 }
@@ -228,13 +227,18 @@ function prepareTarotAudio() {
     tarotAudio ??= new TarotAudioContext();
     if (tarotAudio.state !== 'running') tarotAudio.resume().catch(() => {});
     if (!tarotCrackle) {
-      tarotCrackle = tarotAudio.createBuffer(1, Math.ceil(tarotAudio.sampleRate * .29), tarotAudio.sampleRate);
+      const sampleRate = tarotAudio.sampleRate;
+      tarotCrackle = tarotAudio.createBuffer(1, Math.ceil(sampleRate * .18), sampleRate);
       const noise = tarotCrackle.getChannelData(0);
-      let smoothed = 0;
+      let air = 0;
       for (let i = 0; i < noise.length; i++) {
+        const t = i / sampleRate;
         const white = Math.random() * 2 - 1;
-        smoothed = .66 * smoothed + .34 * white;
-        noise[i] = .57 * white + .43 * smoothed;
+        air = .78 * air + .22 * white;
+        const snap = white * .82 * Math.exp(-t / .006);
+        const fizz = air * .32 * Math.exp(-t / .030);
+        const reflection = t >= .024 ? white * .10 * Math.exp(-(t - .024) / .023) : 0;
+        noise[i] = (snap + fizz + reflection) * Math.min(1, t * 7500);
       }
     }
     return true;
@@ -252,27 +256,28 @@ function playTarotFireworkSound(signal) {
   stopTarotFireworkSound();
   const audio = tarotAudio;
   const limiter = audio.createDynamicsCompressor();
-  limiter.threshold.value = -15;
-  limiter.ratio.value = 8;
-  limiter.attack.value = .002;
+  limiter.threshold.value = -11;
+  limiter.ratio.value = 7;
+  limiter.attack.value = .001;
+  limiter.release.value = .035;
   const mix = audio.createGain();
-  mix.gain.value = .57;
+  mix.gain.value = .78;
   limiter.connect(mix).connect(audio.destination);
   const time = audio.currentTime + .008;
   for (const [i, salvo] of tarotSalvos.entries()) {
     const start = time + salvo.delay / 1000;
     const crack = audio.createBufferSource();
     crack.buffer = tarotCrackle;
-    crack.playbackRate.value = .92 + (i % 4) * .12;
+    crack.playbackRate.value = [1, 1.24, 1.40, 1.17, 1.36, 1.13, 1.04, 1.18, .94][i];
     const filter = audio.createBiquadFilter();
     filter.type = 'highpass';
-    filter.frequency.setValueAtTime(1520 + (i % 3) * 450, start);
-    filter.frequency.exponentialRampToValueAtTime(290, start + .13);
+    filter.frequency.setValueAtTime(850 + (i % 3) * 270, start);
+    filter.frequency.exponentialRampToValueAtTime(250, start + .079);
     const snap = audio.createGain();
     snap.gain.setValueAtTime(.001, start);
-    snap.gain.linearRampToValueAtTime(salvo.strength * .98, start + .002);
-    snap.gain.exponentialRampToValueAtTime(salvo.strength * .075, start + .026);
-    snap.gain.exponentialRampToValueAtTime(.001, start + .22);
+    snap.gain.linearRampToValueAtTime(salvo.strength * 1.5, start + .0008);
+    snap.gain.exponentialRampToValueAtTime(salvo.strength * .62, start + .015);
+    snap.gain.exponentialRampToValueAtTime(.001, start + .16);
     crack.connect(filter).connect(snap);
     if (audio.createStereoPanner) {
       const pan = audio.createStereoPanner();
@@ -282,19 +287,19 @@ function playTarotFireworkSound(signal) {
       snap.connect(limiter);
     }
     crack.start(start);
-    crack.stop(start + .24);
+    crack.stop(start + .17);
 
     const thump = audio.createOscillator();
-    thump.type = i % 3 === 0 ? 'triangle' : 'sine';
-    thump.frequency.setValueAtTime(151 + (i % 4) * 23, start);
-    thump.frequency.exponentialRampToValueAtTime(43, start + .16);
+    thump.type = 'sine';
+    thump.frequency.setValueAtTime(196 + (i % 4) * 24, start);
+    thump.frequency.exponentialRampToValueAtTime(60, start + .082);
     const bass = audio.createGain();
     bass.gain.setValueAtTime(.001, start);
-    bass.gain.linearRampToValueAtTime(salvo.strength * .33, start + .009);
-    bass.gain.exponentialRampToValueAtTime(.001, start + .16);
+    bass.gain.linearRampToValueAtTime(salvo.strength * .31, start + .002);
+    bass.gain.exponentialRampToValueAtTime(.001, start + .076);
     thump.connect(bass).connect(limiter);
     thump.start(start);
-    thump.stop(start + .17);
+    thump.stop(start + .084);
   }
   const stop = () => {
     clearTimeout(cleanup);
